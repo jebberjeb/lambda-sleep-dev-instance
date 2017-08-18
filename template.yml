@@ -3,7 +3,7 @@ Transform:
 - AWS::Serverless-2016-10-31
 
 Resources:
-  SimpleLambda:
+  SleepLambda:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: SleepDevInstance
@@ -12,6 +12,16 @@ Resources:
       MemorySize: 320
       Timeout: 30
       Role: !GetAtt LambdaExecutionRole.Arn
+  WakeLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: WakeDevInstance
+      Handler: "com.jebbeich.wakedevinstance::handler"
+      Runtime: java8
+      MemorySize: 320
+      Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
+
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -41,4 +51,5 @@ Resources:
             - ec2:*
             - ssm:*
             - ec2messages:*
+            - sns:*
             Resource: '*'
