@@ -46,3 +46,8 @@
   [client instance-id]
   (.startInstances client
                    (.withInstanceIds (StartInstancesRequest.) [instance-id])))
+
+(defn state
+  "Returns the state of an instance as a keyword, ex: `:running`."
+  [instance]
+  (-> instance .getState .getName keyword))

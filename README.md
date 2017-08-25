@@ -1,12 +1,15 @@
 # Sleep Dev Instance Lambda
 
-This lambda function tries to put your dev environment to sleep (any EC2
-instance with tag type=dev). If tmux is not running on the machine, it is
-shut down, after a console notification is sent. If tmux is running, the
-instance is not shut down, but a console notification is sent telling the user
-of the Lambda's intent to shut it down. It subsequently retries every few
-minutes for an hour. In either case, an email notification is sent regarding
-the outcome.
+This project contains two Lambdas which attempt to shut down an EC2 instance
+containing a development environment, when it is not in use, to save money.
+
+`SleepDevInstance` looks for any EC2 instances tagged as dev machines, and
+tries to shut them down. If it finds `tmux` running, it aborts shutting the
+instance down. In either case, it sends an SNS notification regarding the
+outcome.
+
+`WakeDevInstance` attempts to start any EC2 instance tagged as a dev machine,
+and sends an SNS notification regarding the outcome.
 
 # Prerequisites
 
@@ -23,11 +26,3 @@ and execute it.
 as it allows us to use AWS CloudFormation to manage the lambda, as well as
 share the CloudFormation template `template.yml` between the local development
 environment & AWS cloud CI environment.
-
-# AWS CodePipeline
-
-Optionally, build & deployment can be pushed to the AWS cloud.
-
-The `buildspec.yml` file can be used to create an AWS CodeBuild. The build can
-then be integrated into an AWS CodePipeline using the resulting
-`template-output.json` artifact.
