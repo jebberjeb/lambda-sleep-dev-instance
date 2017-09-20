@@ -9,18 +9,21 @@
     (com.amazonaws.services.lambda.runtime
       Context)))
 
-(def fsm {nil                    {:init              'initializing}
-          'initializing          {:success           'finding-instance}
-          'finding-instance      {:found             'getting-state
-                                  :not-found         'done}
-          'getting-state         {:stopped           'done
-                                  :stopping          'done
-                                  :running           'getting-tmux-state}
-          'getting-tmux-state    {:stopped           'stopping
-                                  :running           'notifying-cannot-stop}
-          'notifying-cannot-stop {:success           'done}
-          'stopping              {:success           'notifying-stopped}
-          'notifying-stopped     {:success           'done}})
+(def fsm
+  {nil                            {:init 'initializing}
+   'initializing                  {:success 'finding-instance}
+   'finding-instance              {:found 'getting-state :not-found 'done}
+   'getting-state                 {:stopped  'done
+                                   :stopping 'done
+                                   :running  'getting-tmux-state}
+   'getting-tmux-state            {:stopped 'stopping
+                                   :running 'notifying-cannot-stop
+                                   :failed-or-timed-out
+                                     'notifying-failed-or-timed-out}
+   'notifying-failed-or-timed-out {:success 'done}
+   'notifying-cannot-stop         {:success 'done}
+   'stopping                      {:success 'notifying-stopped}
+   'notifying-stopped             {:success 'done}})
 
 ;; ***** States *****
 
@@ -52,12 +55,20 @@
 (defn getting-tmux-state
   [{:keys [data current-state]}]
   (let [{:keys [ssm-client client dev-instance]} data
-        output (ssm/run-command-results
-                 ssm-client (.getInstanceId dev-instance)
-                 "sudo su - ubuntu -c \"tmux list-sessions\"")]
+        ;; TODO check to see if it's finished
+        {:keys [output error]} (ssm/run-command-results
+                                 ssm-client (.getInstanceId dev-instance)
+                                 "sudo su - ubuntu -c \"tmux list-sessions\"")]
     {:data data
      :current-state current-state
-     :transition (if (empty? output) :stopped :running)}))
+     :transition (cond error
+                       error
+
+                       (empty? output)
+                       :stopped
+
+                       :else
+                       :running)}))
 
 (defn notifying-cannot-stop
   [{:keys [data current-state]}]
@@ -68,6 +79,18 @@
       "SleepDevInstance Lambda can not shut down while tmux is running!")
     (sns/notify sns-client topic-arn
                 (format "Dev instance %s was not shut down." instance-id))
+    {:data data
+     :current-state current-state
+     :transition :success}))
+
+(defn notifying-failed-or-timed-out
+  [{:keys [data current-state]}]
+  (let [{:keys [ssm-client sns-client dev-instance topic-arn]} data
+        instance-id (.getInstanceId dev-instance)]
+    (sns/notify
+      sns-client topic-arn
+      (format "Dev instance %s was not shut down, command failed or timed out"
+              instance-id))
     {:data data
      :current-state current-state
      :transition :success}))

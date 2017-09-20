@@ -1,4 +1,6 @@
 (ns com.jebbeich.ssm
+  (:require
+    [clojure.string :as string])
   (:gen-class)
   (:import
     (com.amazonaws.services.simplesystemsmanagement
@@ -18,6 +20,20 @@
       (.withInstanceIds instanceids)
       (.withDocumentName "AWS-RunShellScript")
       (.withParameters {"commands" [command]})))
+
+(defn succeeded?
+  "Returns true if the command succeeded. Retries after a delay."
+  ([ssm-client invocation-request]
+   (succeeded? ssm-client invocation-request 1000 10))
+  ([ssm-client invocation-request delay retries]
+   (Thread/sleep delay)
+   (let [response (.getCommandInvocation ssm-client invocation-request)]
+
+     (cond (= "SUCCESS" (-> response .getStatusDetails string/upper-case))
+           true
+
+           (pos? retries)
+           (succeeded? ssm-client invocation-request delay (dec retries))))))
 
 (defn run-command
   [ssm-client send-command-request]
@@ -44,13 +60,13 @@
 
 (defn run-command-results
   [ssm-client instanceid command]
-  (->> (build-send-command-request [instanceid] command)
-       (run-command ssm-client)
-       (build-command-invocation-request instanceid)
-       ;; HACK wait for the commandId to exist. No idea why we have to do this,
-       ;; since the commandId has been returned by `run-command`.
-       (wait 1000)
-       (get-command-invocation-output ssm-client)))
+  (let [invocation-request
+        (->> (build-send-command-request [instanceid] command)
+             (run-command ssm-client)
+             (build-command-invocation-request instanceid))]
+    (if (succeeded? ssm-client invocation-request)
+      {:output (get-command-invocation-output ssm-client invocation-request)}
+      {:error :failed-or-timed-out})))
 
 (defn message-terminal
   [ssm-client instanceid message]
@@ -59,3 +75,9 @@
                          (format "echo '%s' > %s" message file))
     (run-command-results ssm-client instanceid
                          (format "sudo wall -n %s" file))))
+
+;; test for succeeded?
+#_(let [c (client)
+      i "i-0482ed7606c57c28e"
+      command "sleep 4; echo 'foo'"]
+  (run-command-results c i command))
