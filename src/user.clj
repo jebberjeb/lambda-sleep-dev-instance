@@ -1,9 +1,9 @@
 (ns user
   (:require
-    [com.jebbeich.sleepdevinstance :as core]
+    #_[com.jebbeich.sleepdevinstance :as core]
     [clojure.stacktrace :as stacktrace]))
 
-(defn run
+#_(defn run
   []
   (core/-handler nil nil))
 

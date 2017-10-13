@@ -3,12 +3,29 @@ Transform:
 - AWS::Serverless-2016-10-31
 
 Resources:
-  SleepLambda:
+  MachineStateLambda:
     Type: AWS::Serverless::Function
     Properties:
-      #CodeUri: ./target/sleep-dev-instance-0.1.0-standalone.jar
-      FunctionName: SleepDevInstance
-      Handler: "com.jebbeich.sleepdevinstance::handler"
+      FunctionName: MachineStateLambda
+      Handler: "com.jebbeich.machinestatelambda::handler"
+      Runtime: java8
+      MemorySize: 320
+      Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
+  NotifyLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: NotifyLambda
+      Handler: "com.jebbeich.notifylambda::handler"
+      Runtime: java8
+      MemorySize: 320
+      Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
+  ShutdownLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ShutdownLambda
+      Handler: "com.jebbeich.shutdownlambda::handler"
       Runtime: java8
       MemorySize: 320
       Timeout: 30
@@ -16,7 +33,7 @@ Resources:
   WakeLambda:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: WakeDevInstance
+      FunctionName: WakeLambda
       Handler: "com.jebbeich.wakedevinstance::handler"
       Runtime: java8
       MemorySize: 320
@@ -46,7 +63,6 @@ Resources:
             Action:
             - logs:*
             Resource: arn:aws:logs:*:*:*
-          Statement:
           - Effect: Allow
             Action:
             - ec2:*
@@ -80,19 +96,94 @@ Resources:
   SleepStateMachine:
     Type: "AWS::StepFunctions::StateMachine"
     Properties:
+      RoleArn: !GetAtt [ StatesExecutionRole, Arn ]
       DefinitionString:
         !Sub
           - |-
             {
-              "Comment": "A Hello World AWL example using an AWS Lambda function",
-              "StartAt": "HelloWorld",
+              "Comment": "MachineStateQuery -> MachineStateChoice -> [ShutdownMessage -> Shutdown -> NotifyShutdown] OR [CanNotShutdownMessage -> NotifyCanNotShutdown]",
+              "StartAt": "MachineStateQuery",
               "States": {
-                "HelloWorld": {
+
+                "MachineStateQuery": {
                   "Type": "Task",
-                  "Resource": "${lambdaArn}",
+                  "Resource": "${machineStateLambdaArn}",
+                  "Next": "MachineStateChoice"
+                },
+
+                "MachineStateChoice": {
+                  "Type": "Choice",
+                  "Choices": [
+                    {
+                      "Variable": "$.machine-state",
+                      "StringEquals": "running-no-tmux",
+                      "Next": "Shutdown"
+                    },
+                    {
+                      "Variable": "$.machine-state",
+                      "StringEquals": "machine-not-found",
+                      "Next": "MachineNotFoundMessage"
+                    },
+                    {
+                      "Variable": "$.machine-state",
+                      "StringEquals": "not-running",
+                      "Next": "MachineNotRunningMessage"
+                    },
+                    {
+                      "Variable": "$.machine-state",
+                      "StringEquals": "running-tmux-unknown",
+                      "Next": "MachineTmuxUnknownMessage"
+                    },
+                    {
+                      "Variable": "$.machine-state",
+                      "StringEquals": "running-with-tmux",
+                      "Next": "MachineRunningWithTmuxMessage"
+                    }
+                  ],
+                  "Default": "MessageError"
+                },
+                "Shutdown": {
+                  "Type": "Task",
+                  "Resource": "${shutdownLambdaArn}",
+                  "Next": "ShutdownMessage"
+                },
+                "ShutdownMessage": {
+                  "Type": "Pass",
+                  "Result": { "Message": "Dev instance was shut down" },
+                  "Next": "Notify"
+                },
+                "MachineNotFoundMessage": {
+                  "Type": "Pass",
+                  "Result": { "Message": "Dev instance could not be found" },
+                  "Next": "Notify"
+                },
+                "MachineNotRunningMessage": {
+                  "Type": "Pass",
+                  "Result": { "Message": "Dev instance not running" },
+                  "Next": "Notify"
+                },
+                "MachineTmuxUnknownMessage": {
+                  "Type": "Pass",
+                  "Result": { "Message": "Dev instance not shutdown, tmux query failed or timed out" },
+                  "Next": "Notify"
+                },
+                "MachineRunningWithTmuxMessage": {
+                  "Type": "Pass",
+                  "Result": { "Message": "Dev instance not shutdown, tmux running" },
+                  "Next": "Notify"
+                },
+                "MessageError": {
+                  "Type": "Pass",
+                  "Result": { "Message": "Dev instance not shutdown, unknown error check logs" },
+                  "Next": "Notify"
+                },
+                "Notify": {
+                  "Type": "Task",
+                  "Resource": "${notifyLambdaArn}",
                   "End": true
                 }
               }
             }
-          - {lambdaArn: !GetAtt [ SleepLambda, Arn ]}
-      RoleArn: !GetAtt [ StatesExecutionRole, Arn ]
+          - { machineStateLambdaArn: !GetAtt [ MachineStateLambda, Arn ],
+              notifyLambdaArn: !GetAtt [ NotifyLambda, Arn ],
+              shutdownLambdaArn: !GetAtt [ ShutdownLambda, Arn ]}
