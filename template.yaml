@@ -131,11 +131,6 @@ Resources:
                     },
                     {
                       "Variable": "$.machine-state",
-                      "StringEquals": "running-tmux-unknown",
-                      "Next": "MachineTmuxUnknownMessage"
-                    },
-                    {
-                      "Variable": "$.machine-state",
                       "StringEquals": "running-with-tmux",
                       "Next": "MachineRunningWithTmuxMessage"
                     }
@@ -160,11 +155,6 @@ Resources:
                 "MachineNotRunningMessage": {
                   "Type": "Pass",
                   "Result": { "Message": "Dev instance not running" },
-                  "Next": "Notify"
-                },
-                "MachineTmuxUnknownMessage": {
-                  "Type": "Pass",
-                  "Result": { "Message": "Dev instance not shutdown, tmux query failed or timed out" },
                   "Next": "Notify"
                 },
                 "MachineRunningWithTmuxMessage": {

@@ -19,8 +19,7 @@
                         ;; TODO enumerate other non-running states
                         :running  'getting-tmux-state}
    'getting-tmux-state {:stopped             'report-running-no-tmux
-                        :running             'report-tmux-running
-                        :failed-or-timed-out 'report-failed-or-timed-out}})
+                        :running             'report-tmux-running}})
 
 ;; ***** States *****
 
@@ -54,14 +53,10 @@
                                  "sudo su - ubuntu -c \"tmux list-sessions\"")]
     {:data data
      :current-state current-state
-     :transition (cond error
-                       error
-
-                       (empty? output)
-                       :stopped
-
-                       :else
-                       :running)}))
+     ;; Because if this command is executed and there are no running session,
+     ;; it will return a non-zero exit code & the ssm command will not report
+     ;; success.
+     :transition (if error :stopped :running)}))
 
 (defn report-something
   [machine-state {:keys [data] :as context}]
@@ -72,8 +67,6 @@
 (def report-not-found (partial report-something :machine-not-found))
 (def report-not-running (partial report-something :not-running))
 (def report-running-no-tmux (partial report-something :running-no-tmux))
-(def report-failed-or-timed-out (partial report-something
-                                         :running-tmux-unknown))
 (def report-tmux-running (partial report-something :running-with-tmux))
 
 (def next-state

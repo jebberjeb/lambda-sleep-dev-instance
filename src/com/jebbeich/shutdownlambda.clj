@@ -10,6 +10,5 @@
 ;; ***** Lambda Handler Function *****
 
 (defn -handler [^Object req ^Context ctx]
-  ;; Don't actually shut it down for now, but we should have the instance-id
-  ;; in the request
+  (ec2/stop-instance (ec2/client) (get req "instance-id"))
   "success")
