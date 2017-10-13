@@ -1,15 +1,15 @@
 # Sleep Dev Instance Lambda
 
-This project contains two Lambdas which attempt to shut down an EC2 instance
-containing a development environment, when it is not in use, to save money.
+This project contains several Lambdas, orchestrated by an AWS Step Function
+which attempt to shut down an EC2 instance containing a development
+environment, when it is not in use, to save money.
 
-`SleepDevInstance` looks for any EC2 instances tagged as dev machines, and
-tries to shut them down. If it finds `tmux` running, it aborts shutting the
-instance down. In either case, it sends an SNS notification regarding the
-outcome.
+It looks for any EC2 instances tagged as dev machines, and tries to shut them
+down. If it finds `tmux` running, it aborts shutting the instance down. In
+either case, it sends an SNS notification regarding the outcome.
 
-`WakeDevInstance` attempts to start any EC2 instance tagged as a dev machine,
-and sends an SNS notification regarding the outcome.
+The `WakeDevInstance` Lambda attempts to start any EC2 instance tagged as a dev
+machine, and sends an SNS notification regarding the outcome.
 
 # Prerequisites
 
@@ -22,7 +22,7 @@ CloudWatch artifacts.
 From the command line, use the `deploy.sh` and `run.sh` to deploy the Lambda
 and execute it.
 
-`deploy.sh` uses `aws cloudformation` cli command, as opposed to `aws lambda`
-as it allows us to use AWS CloudFormation to manage the lambda, as well as
-share the CloudFormation template `template.yml` between the local development
+`deploy.sh` uses `aws cloudformation` cli command as it allows us to use AWS
+CloudFormation to manage the step functions & lambdas, as well as share the
+CloudFormation template `template.yml` between the local development
 environment & AWS cloud CI environment.
